@@ -161,11 +161,13 @@ jobs:
   ios:
     name: iOS
     runs-on: macos-15
-    # Informational for now: this needs Xcode 26 with the iOS 26 SDK, and whether a
-    # GitHub-hosted image has it varies. It is marked non-blocking rather than pinned to
-    # a self-hosted runner, because a public repository should not hand fork PRs access
-    # to private hardware. Flip this off once a run has passed.
-    continue-on-error: true
+    # A GitHub-hosted macos-15 image does carry Xcode 26, verified by a green run — so
+    # this gates like the others rather than being advisory. The Xcode selection below
+    # still skips cleanly if a future image regresses, which fails loudly in the log
+    # instead of silently building against the wrong SDK.
+    #
+    # Deliberately not a self-hosted runner: a public repository must not hand pull
+    # requests from forks access to private hardware.
     steps:
       - uses: actions/checkout@v4
       - uses: bufbuild/buf-action@v1

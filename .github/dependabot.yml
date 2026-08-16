@@ -1,0 +1,35 @@
+# Grouped weekly, so this produces a handful of reviewable PRs rather than a stream of
+# single-dependency ones. Every PR runs the full CI matrix.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      backend:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    groups:
+      web:
+        patterns: ['*']
+
+  - package-ecosystem: swift
+    directory: /apple
+    schedule:
+      interval: weekly
+    groups:
+      apple:
+        patterns: ['*']
