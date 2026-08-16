@@ -92,7 +92,13 @@ jobs:
         # must fail loudly rather than fall back to a default password — that fallback
         # is exactly how a known admin credential reaches a deployment.
         run: |
-          if make seed < /dev/null 2>&1 | tee /tmp/seed.log; then
+          # Captured to a file rather than piped: the exit status of a pipeline is the
+          # last command's, so `make seed | tee` always looked like success and this
+          # check asserted the opposite of what happened.
+          rc=0
+          make seed < /dev/null > /tmp/seed.log 2>&1 || rc=$?
+          cat /tmp/seed.log
+          if [ "$rc" -eq 0 ]; then
             echo "::error::the seed should have refused without credentials"; exit 1
           fi
           grep -q "no terminal" /tmp/seed.log
@@ -119,8 +125,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: web/pnpm-lock.yaml
+          # No `cache: pnpm` on purpose. The install below is skipped when the icon
+          # registry token is absent, so no pnpm store is ever created — and
+          # setup-node's cache-save step then fails the whole job on a missing path.
       - uses: bufbuild/buf-action@v1
         with:
           setup_only: true
