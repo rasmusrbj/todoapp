@@ -235,7 +235,11 @@ ios-test-live: ios-project require-demo-account ## Run the end-to-end iOS tests 
 		-only-testing:TodoappUITests/LiveFlowTests test
 
 # The Mac's Bonjour name, so a device build survives a DHCP lease change.
-IOS_DEV_HOST := $(shell scutil --get LocalHostName).local
+#
+# Guarded because this is evaluated on *every* make invocation, including on the Linux
+# CI runners where `scutil` does not exist — an unguarded call printed
+# "scutil: command not found" in front of unrelated targets.
+IOS_DEV_HOST := $(shell command -v scutil >/dev/null 2>&1 && echo "$$(scutil --get LocalHostName).local")
 # First paired, available iPhone. Matched by UUID shape rather than column position:
 # the device *name* column contains spaces ("rasse 15 pro max titanium"), so positional
 # fields land in the middle of a name.
