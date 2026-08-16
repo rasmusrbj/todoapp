@@ -56,6 +56,12 @@ jobs:
           --health-cmd "pg_isready -U postgres"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      # Refuse to re-resolve. `uv sync` silently re-locked here and installed a newer
+      # connectrpc than uv.lock pins — one whose JSON codec needs protobuf 7, while
+      # pyproject caps protobuf below 7. That surfaced as `AttributeError: from_json`
+      # from a file 3 lines longer than the pinned wheel's, which says nothing about the
+      # cause. Frozen means CI installs the lock or fails saying so.
+      UV_FROZEN: '1'
       # DB_URL / TEST_DB_URL are what the Makefile passes to the tools; setting only the
       # TODOAPP_* variables did nothing, because the recipes override them from these.
       DB_URL: postgresql://postgres:postgres@localhost:5432/todoapp
@@ -79,6 +85,9 @@ jobs:
       # Generate first: `backend/pyproject.toml` lists `gen/todo` as a package, so an
       # install performed before codegen leaves `import todo` broken for the console
       # scripts — while pytest still worked, because it has its own `pythonpath`.
+      - name: The lockfile matches pyproject
+        # A named failure beats a mysterious one downstream.
+        run: cd backend && uv lock --check
       - run: make generate-backend
       - run: make install-backend
       - run: make lint-backend
