@@ -25,7 +25,7 @@ jobs:
     name: Proto
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # `buf breaking` needs history to compare against.
           fetch-depth: 0
@@ -69,8 +69,8 @@ jobs:
       TODOAPP_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/todoapp
       TODOAPP_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/todoapp_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
       - uses: bufbuild/buf-action@v1
@@ -126,12 +126,12 @@ jobs:
     # still cover their PR. See CONTRIBUTING.md.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           # There is no root package.json; the pin lives in the web app's.
           package_json_file: web/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           # No `cache: pnpm` on purpose. The install below is skipped when the icon
@@ -178,7 +178,7 @@ jobs:
     # Deliberately not a self-hosted runner: a public repository must not hand pull
     # requests from forks access to private hardware.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: bufbuild/buf-action@v1
         with:
           setup_only: true
