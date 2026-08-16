@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass
 from typing import Final, NoReturn
 
@@ -25,11 +24,24 @@ _CODEC: Final = proto_json_codec()
 class CliError(Exception):
     """A failure that should print as one line and exit non-zero."""
 
-    def __init__(self, message: str, *, hint: str | None = None, exit_code: int = 1) -> None:
-        """Stores the message, an optional next step, and the exit code."""
+    def __init__(
+        self,
+        message: str,
+        *,
+        hint: str | None = None,
+        exit_code: int = 1,
+        reason: str | None = None,
+    ) -> None:
+        """Stores the message, an optional next step, the exit code, and a reason.
+
+        `reason` is an `ErrorReason` name when the failure maps onto one, so the
+        `--json` form gives a program the same stable key the server would have sent.
+        Locally-detected problems (an ambiguous id prefix, say) leave it unset.
+        """
         super().__init__(message)
         self.hint = hint
         self.exit_code = exit_code
+        self.reason = reason
 
 
 @dataclass(slots=True)
@@ -55,7 +67,13 @@ class Api:
         """
         if not self.config.token:
             raise CliError(
-                "You are not signed in.", hint="Run: todoapp auth login --email you@example.com"
+                "You are not signed in.",
+                hint="Run: todoapp auth login --email you@example.com",
+                # 3, not the default 1: this is "not allowed", which is what the
+                # documented exit-code contract promises and what lets a caller know
+                # signing in would fix it.
+                exit_code=3,
+                reason="ERROR_REASON_NOT_AUTHENTICATED",
             )
         return self.headers
 
@@ -117,26 +135,72 @@ def describe(error: ConnectError, *, locale: str = "da") -> tuple[str, str | Non
     return " ".join(parts), _HINTS.get(detail.reason)
 
 
-def die(error: ConnectError, *, locale: str = "da") -> NoReturn:
-    """Prints a Connect error and exits.
+def _plain_message(error: ConnectError, *, locale: str = "da") -> str:
+    """The server's message with no decoration, for the JSON form."""
+    del locale  # Reserved, like `describe`: the reason is the localization key.
+    return error.message or error.code.name
 
-    Raises:
-        SystemExit: Always. Exit code 3 for an authorization failure so a script can
-            tell "not allowed" apart from "bad usage" (2) and everything else (1).
-    """
-    message, hint = describe(error, locale=locale)
-    output.error(message)
-    if hint:
-        print(f"  {output.paint(hint, 'dim')}", file=sys.stderr)
-    detail = detail_of(error)
-    auth_failure = detail is not None and detail.reason in {
+
+#: Reasons that mean "you may not do this", as opposed to "that request was wrong".
+#: Exit code 3 lets a script or an agent retry after signing in rather than treating it
+#: as a bad command.
+_AUTH_REASONS: Final = frozenset(
+    {
         ErrorReason.ERROR_REASON_NOT_AUTHENTICATED,
         ErrorReason.ERROR_REASON_SESSION_EXPIRED,
         ErrorReason.ERROR_REASON_PERMISSION_DENIED,
         ErrorReason.ERROR_REASON_ADMIN_REQUIRED,
         ErrorReason.ERROR_REASON_OWNER_REQUIRED,
     }
-    raise SystemExit(3 if auth_failure else 1)
+)
+
+
+def die(error: ConnectError, *, locale: str = "da", as_json_output: bool = False) -> NoReturn:
+    """Prints a Connect error and exits.
+
+    In `--json` mode the failure is a JSON object on stderr carrying the machine-readable
+    `ErrorReason`, so a program driving the CLI branches on `reason` rather than matching
+    localized prose.
+
+    Raises:
+        SystemExit: Always. Exit code 3 for an authorization failure so a caller can tell
+            "not allowed" apart from "bad usage" (2) and everything else (1).
+    """
+    detail = detail_of(error)
+    auth_failure = detail is not None and detail.reason in _AUTH_REASONS
+    exit_code = 3 if auth_failure else 1
+
+    if as_json_output:
+        # The bare server message, not the decorated human line: a program does not want
+        # "(ERROR_REASON_TASK_NOT_FOUND)" appended to a sentence it will never show.
+        output.fail(
+            _plain_message(error, locale=locale),
+            as_json_output=True,
+            reason=ErrorReason.Name(detail.reason) if detail else None,
+            field=detail.field if detail and detail.field else None,
+            metadata=dict(detail.metadata) if detail and detail.metadata else None,
+            hint=_HINTS.get(detail.reason) if detail else None,
+            exit_code=exit_code,
+        )
+        raise SystemExit(exit_code)
+
+    message, hint = describe(error, locale=locale)
+    output.fail(message, as_json_output=False, hint=hint)
+    raise SystemExit(exit_code)
+
+
+#: The reason the server would send for "no such <kind>", so a locally-detected
+#: not-found is indistinguishable to a caller branching on `reason`.
+_NOT_FOUND_REASONS: Final = {
+    "task": "ERROR_REASON_TASK_NOT_FOUND",
+    "list": "ERROR_REASON_LIST_NOT_FOUND",
+    "label": "ERROR_REASON_LABEL_NOT_FOUND",
+    "comment": "ERROR_REASON_COMMENT_NOT_FOUND",
+    "subtask": "ERROR_REASON_SUBTASK_NOT_FOUND",
+    "user": "ERROR_REASON_USER_NOT_FOUND",
+    "session": "ERROR_REASON_SESSION_NOT_FOUND",
+    "member": "ERROR_REASON_MEMBER_NOT_FOUND",
+}
 
 
 def resolve_id(prefix: str, candidates: dict[str, str], *, kind: str) -> str:
@@ -167,8 +231,11 @@ def resolve_id(prefix: str, candidates: dict[str, str], *, kind: str) -> str:
         raise CliError(
             f"No {kind} matches {prefix!r}.",
             hint=f"Run: todoapp {kind}s list",
+            reason=_NOT_FOUND_REASONS.get(kind),
         )
     listed = "\n".join(
         f"  {output.short_id(full)}  {candidates[full]}" for full in sorted(matches)[:10]
     )
+    # Ambiguity is the caller's mistake, not a missing row, so it stays reason-less:
+    # there is no server reason for "you gave me half an id that fits two things".
     raise CliError(f"{prefix!r} matches {len(matches)} {kind}s:\n{listed}")

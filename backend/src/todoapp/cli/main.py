@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import sys
 from collections.abc import Sequence
+from typing import NoReturn
 
 from connectrpc.errors import ConnectError
 
@@ -43,9 +44,35 @@ Ids may be shortened to any unique prefix — the prefixes printed in listings w
 """
 
 
+class JsonAwareParser(argparse.ArgumentParser):
+    """An `ArgumentParser` whose usage errors respect `--json`.
+
+    `argparse` writes usage text to stderr and exits before any handler runs, so a bad
+    flag was the one failure a `--json` caller still received as prose. That is the
+    difference between a program that can always parse the CLI's answer and one that
+    parses it *usually*.
+
+    `sys.argv` is inspected directly because the failure happens during parsing — there
+    is no parsed `--json` yet to consult. Subparsers inherit this class from their
+    parent, so the whole command tree is covered by constructing the root with it.
+    """
+
+    def error(self, message: str) -> NoReturn:
+        """Reports a usage error, as JSON when the caller asked for JSON."""
+        if "--json" in sys.argv[1:]:
+            output.fail(
+                message,
+                as_json_output=True,
+                hint=f"Run: {self.prog} --help",
+                exit_code=2,
+            )
+            raise SystemExit(2)
+        super().error(message)
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Builds the whole command tree."""
-    parser = argparse.ArgumentParser(
+    parser = JsonAwareParser(
         prog="todoapp",
         description="Command-line client for the todo app.",
         epilog=_EPILOG,
@@ -167,29 +194,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     options.locale = display.locale_or_default(options.locale or config.locale)
 
     api = client.build(config)
+    # Every failure below reports in the same shape the caller asked for. A `--json`
+    # caller is a program, and it should never have to parse prose.
+    as_json = bool(getattr(options, "json", False))
     try:
         return int(options.handler(api, options))
     except client.CliError as err:
-        output.error(str(err))
-        if err.hint:
-            print(f"  {output.paint(err.hint, 'dim')}", file=sys.stderr)
+        output.fail(
+            str(err),
+            as_json_output=as_json,
+            reason=err.reason,
+            hint=err.hint,
+            exit_code=err.exit_code,
+        )
         return err.exit_code
     except ConnectError as err:
-        client.die(err, locale=options.locale)
+        client.die(err, locale=options.locale, as_json_output=as_json)
     except ValueError as err:
         # Raised by the enum argument parser for a value argparse could not police,
         # e.g. one read from a file.
-        output.error(str(err))
+        output.fail(str(err), as_json_output=as_json, exit_code=2)
         return 2
     except KeyboardInterrupt:
-        output.warn("Cancelled.")
+        if as_json:
+            output.fail("Cancelled.", as_json_output=True, exit_code=130)
+        else:
+            output.warn("Cancelled.")
         return 130
     except OSError as err:
         # A connection refused is the single most common failure in development.
-        output.error(f"Cannot reach {config.base_url}: {err}")
-        print(
-            f"  {output.paint('Is the server running? Try: make dev-backend', 'dim')}",
-            file=sys.stderr,
+        output.fail(
+            f"Cannot reach {config.base_url}: {err}",
+            as_json_output=as_json,
+            hint="Is the server running? Try: make dev-backend",
+            exit_code=1,
         )
         return 1
 

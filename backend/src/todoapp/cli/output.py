@@ -164,3 +164,69 @@ def short_id(value: str) -> str:
 def json_payload(data: Any) -> str:
     """Serialises plain Python data for the ``--json`` form of a non-proto result."""
     return json.dumps(data, indent=2, ensure_ascii=False)
+
+
+def json_error(
+    message: str,
+    *,
+    reason: str | None = None,
+    field: str | None = None,
+    metadata: dict[str, str] | None = None,
+    hint: str | None = None,
+    exit_code: int = 1,
+) -> str:
+    """Renders a failure as JSON, for `--json` callers that are programs.
+
+    Without this, `--json` printed a machine-readable payload on success and human
+    prose on failure — so anything driving the CLI had to parse two formats, and the
+    one it needed most was the prose. The contract is now:
+
+    * exit 0 → the payload on stdout, nothing on stderr;
+    * non-zero → nothing on stdout, one JSON object on stderr.
+
+    Errors go to stderr rather than stdout on purpose. A command that has already
+    written part of a payload and then fails would otherwise leave two concatenated
+    objects on stdout, which is not parseable JSON at all.
+
+    `reason` is the `todo.v1.ErrorReason` name, and it is the field to branch on:
+    it is stable, while `message` is localized and may be reworded.
+    """
+    body: dict[str, Any] = {"message": message, "exit_code": exit_code}
+    if reason:
+        body["reason"] = reason
+    if field:
+        body["field"] = field
+    if metadata:
+        body["metadata"] = dict(metadata)
+    if hint:
+        body["hint"] = hint
+    return json.dumps({"error": body}, indent=2, ensure_ascii=False)
+
+
+def fail(
+    message: str,
+    *,
+    as_json_output: bool,
+    reason: str | None = None,
+    field: str | None = None,
+    metadata: dict[str, str] | None = None,
+    hint: str | None = None,
+    exit_code: int = 1,
+) -> None:
+    """Prints a failure in whichever form the caller asked for."""
+    if as_json_output:
+        print(
+            json_error(
+                message,
+                reason=reason,
+                field=field,
+                metadata=metadata,
+                hint=hint,
+                exit_code=exit_code,
+            ),
+            file=sys.stderr,
+        )
+        return
+    error(message)
+    if hint:
+        print(f"  {paint(hint, 'dim')}", file=sys.stderr)

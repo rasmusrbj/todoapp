@@ -76,8 +76,11 @@ jobs:
         env:
           PGPASSWORD: postgres
 
-      - run: make install-backend
+      # Generate first: `backend/pyproject.toml` lists `gen/todo` as a package, so an
+      # install performed before codegen leaves `import todo` broken for the console
+      # scripts — while pytest still worked, because it has its own `pythonpath`.
       - run: make generate-backend
+      - run: make install-backend
       - run: make lint-backend
       - run: make migrate
       - name: Tests
@@ -110,6 +113,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        with:
+          # There is no root package.json; the pin lives in the web app's.
+          package_json_file: web/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -179,12 +185,10 @@ jobs:
           echo "usable=true" >> "$GITHUB_OUTPUT"
       - if: steps.xcode.outputs.usable == 'true'
         run: brew install xcodegen
-      # Swift codegen uses local plugins, so this needs no network and cannot be
-      # rate-limited by the registry.
+      # The registry's hosted plugins, because `protoc-gen-connect-swift` is not a
+      # Homebrew formula and cannot be installed here. Developers use the local pair.
       - if: steps.xcode.outputs.usable == 'true'
-        run: brew install swift-protobuf protoc-gen-connect-swift
-      - if: steps.xcode.outputs.usable == 'true'
-        run: make generate-ios
+        run: make generate-ios-remote
       - if: steps.xcode.outputs.usable == 'true'
         run: make ios-project
       - name: Build and run the hermetic tests

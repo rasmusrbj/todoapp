@@ -161,9 +161,17 @@ todoapp tasks done 4f2c
 todoapp tasks list --json | jq '.tasks[].title'
 ```
 
-Every command takes `--json`, `--locale da|en`, and `--server`. Exit codes: `0` ok,
-`1` failed, `2` bad usage, `3` not signed in or not allowed. Config lives in
+Every command takes `--json`, `--locale da|en`, and `--server`. Config lives in
 `~/.config/todoapp/config.json` at mode 0600.
+
+`--json` is machine-readable on **every** path, which is what makes the CLI usable by an
+agent: on success the payload goes to stdout and stderr is empty; on any failure stdout is
+empty and stderr carries exactly one `{"error": {...}}` object with `reason` (an
+`ErrorReason` name), and optionally `field`, `metadata` and `hint`. Branch on `reason` —
+`message` is localized prose. Exit codes: `0` ok, `1` failed, `2` bad usage, `3` not
+signed in or not allowed. `tests/test_cli_json_contract.py` pins all of it, including that
+an argparse usage error is JSON too (it exits before any handler, so it needed its own
+parser subclass).
 
 ## The iOS app
 

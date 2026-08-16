@@ -1,0 +1,26 @@
+version: v2
+clean: true
+
+# Identical output to buf.gen.swift.yaml, but through the Buf Schema Registry's hosted
+# plugins instead of local binaries.
+#
+# It exists for CI. `protoc-gen-swift` is a Homebrew formula, but
+# `protoc-gen-connect-swift` is not — so a runner cannot `brew install` the pair, and
+# building it from source on every run costs more than the network call. Developers keep
+# using the local template: offline, instant, and immune to the registry's rate limits.
+inputs:
+  - directory: proto
+
+plugins:
+  - remote: buf.build/apple/swift:v1.31.0
+    out: apple/gen
+    opt:
+      - Visibility=Public
+      - FileNaming=PathToUnderscores
+  - remote: buf.build/connectrpc/swift:v1.2.3
+    out: apple/gen
+    opt:
+      - GenerateAsyncMethods=true
+      - GenerateCallbackMethods=false
+      - Visibility=Public
+      - FileNaming=PathToUnderscores

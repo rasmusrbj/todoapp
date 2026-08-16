@@ -319,9 +319,45 @@ todoapp lists share 7a1b --email kollega@eksempel.dk --role editor
 todoapp tasks list --json | jq '.tasks[].title'
 ```
 
-Every command takes `--json`, `--locale da|en`, and `--server`. Exit codes are meant to
-be branched on: `0` success, `1` the request failed, `2` bad usage, `3` not signed in or
-not allowed.
+Every command takes `--json`, `--locale da|en`, and `--server`.
+
+### Driving it from a program
+
+The CLI is meant to be usable by scripts and coding agents, not only by people, so
+`--json` is machine-readable on **every** path — including the failures. The contract:
+
+| | stdout | stderr | exit |
+|---|---|---|---|
+| success | the payload | *empty* | `0` |
+| bad usage | *empty* | one JSON error | `2` |
+| not signed in / not allowed | *empty* | one JSON error | `3` |
+| anything else failed | *empty* | one JSON error | `1` |
+
+```console
+$ todoapp lists get 00000000-0000-0000-0000-000000000000 --json
+{
+  "error": {
+    "message": "list not found",
+    "exit_code": 1,
+    "reason": "ERROR_REASON_LIST_NOT_FOUND",
+    "hint": "Run: todoapp lists list"
+  }
+}
+```
+
+**Branch on `reason`, not on `message`.** The reason is a `todo.v1.ErrorReason` name —
+stable, and the same value the API sent. The message is localized prose and may be
+reworded. `field` names the input at fault, and `metadata` carries the numbers you need to
+correct yourself and retry (`{"max_length": "200"}`).
+
+Errors go to stderr rather than stdout on purpose: a command that has already written part
+of a payload and then fails would otherwise leave two concatenated objects on stdout,
+which is not parseable JSON at all. So stdout is always either one valid document or
+empty.
+
+Enum values are emitted as their proto names (`TASK_STATUS_DONE`), and field names keep
+their proto spelling (`due_at`, not `dueAt`), so the output is self-describing and matches
+the contract rather than a language's conventions.
 
 ## Testing
 

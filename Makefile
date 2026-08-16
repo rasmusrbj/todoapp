@@ -69,6 +69,12 @@ generate-web: ## Regenerate the TypeScript client (local protoc-gen-es)
 generate-ios: ## Regenerate the Swift client (local protoc-gen-swift)
 	$(BUF) generate --template buf.gen.swift.yaml
 
+.PHONY: generate-ios-remote
+generate-ios-remote: ## Same, via the registry's hosted plugins (for CI)
+	# `protoc-gen-connect-swift` is not a Homebrew formula, so a runner cannot install
+	# the local pair. Same output, one network call.
+	$(BUF) generate --template buf.gen.swift.remote.yaml
+
 .PHONY: lint-proto
 lint-proto: ## Lint the proto contract
 	buf lint
