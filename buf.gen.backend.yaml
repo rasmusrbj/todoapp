@@ -1,0 +1,24 @@
+version: v2
+
+# `clean: true` wipes `out` before writing, so it must only ever point at a directory
+# holding generated code. It also means a *failed* run leaves nothing behind — which is
+# why each target has its own config: a rate-limited Python generate must not take the
+# web and iOS trees with it.
+clean: true
+
+inputs:
+  - directory: proto
+
+plugins:
+  # `backend/gen` is its own import root so protobuf's absolute imports
+  # (`from todo.v1 import enums_pb2`) resolve; see backend/pyproject.toml.
+  #
+  # These two stay remote: `connect-python` ships no local codegen binary, and the
+  # message plugin is kept on the same footing so both come from one pinned source.
+  # Remote plugins are rate-limited by the BSR, so avoid running this in a loop.
+  - remote: buf.build/protocolbuffers/python:v32.1
+    out: backend/gen
+  - remote: buf.build/protocolbuffers/pyi:v32.1
+    out: backend/gen
+  - remote: buf.build/connectrpc/python:v0.10.1
+    out: backend/gen

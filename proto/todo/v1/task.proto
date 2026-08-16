@@ -1,0 +1,343 @@
+syntax = "proto3";
+
+package todo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "todo/v1/common.proto";
+import "todo/v1/enums.proto";
+
+// A single task. Carries enough context to render a full row or detail pane.
+message Task {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+
+  TaskStatus status = 10;
+  TaskPriority priority = 11;
+  // Manual ordering within the list.
+  int32 position = 12;
+
+  ListRef list = 20;
+  UserRef created_by = 21;
+  optional UserRef assignee = 22;
+  repeated LabelRef labels = 23;
+  // Nested subtasks, one level deep.
+  repeated Subtask subtasks = 24;
+  Recurrence recurrence = 25;
+
+  optional google.protobuf.Timestamp due_at = 30;
+  // True when due_at carries a meaningful time of day; false for all-day tasks.
+  bool due_has_time = 31;
+  optional google.protobuf.Timestamp starts_at = 32;
+  optional google.protobuf.Timestamp completed_at = 33;
+  optional UserRef completed_by = 34;
+  google.protobuf.Timestamp created_at = 35;
+  google.protobuf.Timestamp updated_at = 36;
+
+  // Server-computed: due_at is in the past and the task is not finished.
+  bool overdue = 40;
+  int32 comment_count = 41;
+  int32 subtask_count = 42;
+  int32 completed_subtask_count = 43;
+  // Free-form estimate in minutes; 0 when unset.
+  int32 estimate_minutes = 44;
+}
+
+// A checklist item under a task.
+message Subtask {
+  string id = 1;
+  string task_id = 2;
+  string title = 3;
+  bool completed = 4;
+  int32 position = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  optional google.protobuf.Timestamp completed_at = 8;
+}
+
+// A task's repeat rule. NONE frequency means it does not repeat.
+message Recurrence {
+  RecurrenceFrequency frequency = 1;
+  // Repeat every N periods of `frequency`. 1 when unset.
+  int32 interval = 2;
+  // Stop repeating after this moment. Unset means forever.
+  optional google.protobuf.Timestamp until = 3;
+}
+
+// A comment on a task.
+message Comment {
+  string id = 1;
+  string task_id = 2;
+  UserRef author = 3;
+  string body = 4;
+  bool edited = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// One entry in the activity feed.
+message Activity {
+  string id = 1;
+  ActivityAction action = 2;
+  ActivityTargetType target_type = 3;
+  string target_id = 4;
+  // Human-readable label of the target at the time of the event, so the feed
+  // still reads correctly after a rename or delete.
+  string target_label = 5;
+  UserRef actor = 6;
+  optional ListRef list = 7;
+  // Machine-readable before/after for the changed field, when applicable.
+  optional ActivityChange change = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+// Structured diff for an activity entry. Values are enum names or plain text,
+// never localized — the client resolves them for display.
+message ActivityChange {
+  string field = 1;
+  string from_value = 2;
+  string to_value = 3;
+}
+
+service TaskService {
+  rpc GetTask(GetTaskRequest) returns (GetTaskResponse) {}
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse) {}
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse) {}
+  rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse) {}
+  // Dedicated status transition, so the server can stamp completion metadata
+  // and roll a recurring task forward.
+  rpc SetTaskStatus(SetTaskStatusRequest) returns (SetTaskStatusResponse) {}
+  rpc AssignTask(AssignTaskRequest) returns (AssignTaskResponse) {}
+  // Moves a task within its list or to another list, at a given index.
+  rpc MoveTask(MoveTaskRequest) returns (MoveTaskResponse) {}
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse) {}
+  // Applies one change to many tasks at once.
+  rpc BulkUpdateTasks(BulkUpdateTasksRequest) returns (BulkUpdateTasksResponse) {}
+
+  rpc SetTaskLabels(SetTaskLabelsRequest) returns (SetTaskLabelsResponse) {}
+
+  rpc CreateSubtask(CreateSubtaskRequest) returns (CreateSubtaskResponse) {}
+  rpc UpdateSubtask(UpdateSubtaskRequest) returns (UpdateSubtaskResponse) {}
+  rpc DeleteSubtask(DeleteSubtaskRequest) returns (DeleteSubtaskResponse) {}
+
+  rpc ListComments(ListCommentsRequest) returns (ListCommentsResponse) {}
+  rpc CreateComment(CreateCommentRequest) returns (CreateCommentResponse) {}
+  rpc UpdateComment(UpdateCommentRequest) returns (UpdateCommentResponse) {}
+  rpc DeleteComment(DeleteCommentRequest) returns (DeleteCommentResponse) {}
+
+  // Reverse-chronological feed, optionally narrowed to one list or task.
+  rpc ListActivity(ListActivityRequest) returns (ListActivityResponse) {}
+}
+
+message GetTaskRequest {
+  string id = 1;
+}
+
+message GetTaskResponse {
+  Task task = 1;
+}
+
+// Every filter is optional; repeated filters are OR within a field and AND
+// across fields.
+message ListTasksRequest {
+  PageRequest page = 1;
+  // Empty means every list the caller can read.
+  repeated string list_ids = 2;
+  string query = 3;
+  repeated TaskStatus statuses = 4;
+  repeated TaskPriority priorities = 5;
+  repeated string label_ids = 6;
+  repeated string assignee_ids = 7;
+  // True to restrict to tasks with no assignee.
+  bool unassigned_only = 8;
+  optional google.protobuf.Timestamp due_after = 9;
+  optional google.protobuf.Timestamp due_before = 10;
+  bool overdue_only = 11;
+  TaskSortField sort_field = 12;
+  SortDirection sort_direction = 13;
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  PageResponse page = 2;
+  // Counts per status across the whole filtered set, for the filter chips.
+  map<string, int32> status_counts = 3;
+}
+
+message CreateTaskRequest {
+  string list_id = 1;
+  string title = 2;
+  string description = 3;
+  TaskPriority priority = 4;
+  TaskStatus status = 5;
+  optional string assignee_id = 6;
+  repeated string label_ids = 7;
+  optional google.protobuf.Timestamp due_at = 8;
+  bool due_has_time = 9;
+  optional google.protobuf.Timestamp starts_at = 10;
+  Recurrence recurrence = 11;
+  int32 estimate_minutes = 12;
+  // Optional checklist titles, created in order.
+  repeated string subtask_titles = 13;
+}
+
+message CreateTaskResponse {
+  Task task = 1;
+}
+
+message UpdateTaskRequest {
+  string id = 1;
+  optional string title = 2;
+  optional string description = 3;
+  optional TaskPriority priority = 4;
+  optional int32 estimate_minutes = 5;
+  optional Recurrence recurrence = 6;
+  // Presence writes the value; `clear_due_at` removes it.
+  optional google.protobuf.Timestamp due_at = 7;
+  optional bool due_has_time = 8;
+  bool clear_due_at = 9;
+  optional google.protobuf.Timestamp starts_at = 10;
+  bool clear_starts_at = 11;
+}
+
+message UpdateTaskResponse {
+  Task task = 1;
+}
+
+message SetTaskStatusRequest {
+  string id = 1;
+  TaskStatus status = 2;
+}
+
+message SetTaskStatusResponse {
+  Task task = 1;
+  // Present when completing a recurring task spawned the next occurrence.
+  optional Task next_occurrence = 2;
+}
+
+message AssignTaskRequest {
+  string id = 1;
+  // Unset clears the assignee.
+  optional string assignee_id = 2;
+}
+
+message AssignTaskResponse {
+  Task task = 1;
+}
+
+message MoveTaskRequest {
+  string id = 1;
+  // Target list. Unset keeps the task where it is.
+  optional string list_id = 2;
+  // Zero-based index within the target list.
+  int32 position = 3;
+}
+
+message MoveTaskResponse {
+  Task task = 1;
+}
+
+message DeleteTaskRequest {
+  string id = 1;
+}
+
+message DeleteTaskResponse {}
+
+message BulkUpdateTasksRequest {
+  repeated string task_ids = 1;
+  // Exactly one change must be set.
+  oneof change {
+    TaskStatus status = 2;
+    TaskPriority priority = 3;
+    string list_id = 4;
+    string assignee_id = 5;
+    bool clear_assignee = 6;
+  }
+}
+
+message BulkUpdateTasksResponse {
+  repeated Task tasks = 1;
+  int32 updated_count = 2;
+}
+
+message SetTaskLabelsRequest {
+  string task_id = 1;
+  // The complete desired set; anything missing is removed.
+  repeated string label_ids = 2;
+}
+
+message SetTaskLabelsResponse {
+  Task task = 1;
+}
+
+message CreateSubtaskRequest {
+  string task_id = 1;
+  string title = 2;
+}
+
+message CreateSubtaskResponse {
+  Subtask subtask = 1;
+}
+
+message UpdateSubtaskRequest {
+  string id = 1;
+  optional string title = 2;
+  optional bool completed = 3;
+  optional int32 position = 4;
+}
+
+message UpdateSubtaskResponse {
+  Subtask subtask = 1;
+}
+
+message DeleteSubtaskRequest {
+  string id = 1;
+}
+
+message DeleteSubtaskResponse {}
+
+message ListCommentsRequest {
+  string task_id = 1;
+  PageRequest page = 2;
+}
+
+message ListCommentsResponse {
+  repeated Comment comments = 1;
+  PageResponse page = 2;
+}
+
+message CreateCommentRequest {
+  string task_id = 1;
+  string body = 2;
+}
+
+message CreateCommentResponse {
+  Comment comment = 1;
+}
+
+message UpdateCommentRequest {
+  string id = 1;
+  string body = 2;
+}
+
+message UpdateCommentResponse {
+  Comment comment = 1;
+}
+
+message DeleteCommentRequest {
+  string id = 1;
+}
+
+message DeleteCommentResponse {}
+
+message ListActivityRequest {
+  PageRequest page = 1;
+  optional string list_id = 2;
+  optional string task_id = 3;
+  repeated ActivityAction actions = 4;
+}
+
+message ListActivityResponse {
+  repeated Activity activities = 1;
+  PageResponse page = 2;
+}

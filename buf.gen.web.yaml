@@ -1,0 +1,19 @@
+version: v2
+clean: true
+
+inputs:
+  - directory: proto
+
+plugins:
+  # Local, not remote: `protoc-gen-es` is on PATH via npm, so this needs no network and
+  # cannot be rate-limited. Protobuf-ES v2 generates messages *and* services in one
+  # plugin. Keep the installed generator no newer than `@bufbuild/protobuf` in
+  # web/package.json — the runtime must be at least the generator's version.
+  - local: protoc-gen-es
+    out: web/src/gen
+    opt:
+      - target=ts
+      # No extension on generated imports: Next.js resolves TypeScript with
+      # `moduleResolution: bundler`, which cannot follow a `.js` specifier that points
+      # at a `.ts` file.
+      - import_extension=none

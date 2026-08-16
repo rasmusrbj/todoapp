@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package todo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "todo/v1/enums.proto";
+import "todo/v1/user.proto";
+
+// An authenticated session. The token itself is only ever returned once, at
+// creation; the server stores nothing but its hash.
+message Session {
+  string id = 1;
+  string user_id = 2;
+  SessionClient client = 3;
+  // Coarse device description derived from the User-Agent, for the session list.
+  string user_agent = 4;
+  string ip_address = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  google.protobuf.Timestamp last_used_at = 8;
+  // True for the session making the current call.
+  bool is_current = 9;
+}
+
+service AuthService {
+  // Creates an account and an initial session in one step.
+  rpc Register(RegisterRequest) returns (RegisterResponse) {}
+  // Exchanges email + password for a session.
+  rpc Login(LoginRequest) returns (LoginResponse) {}
+  // Revokes the calling session.
+  rpc Logout(LogoutRequest) returns (LogoutResponse) {}
+  // Rotates the calling session's token, extending its lifetime.
+  rpc RefreshSession(RefreshSessionRequest) returns (RefreshSessionResponse) {}
+  // Changes the caller's password. Revokes every other session.
+  rpc ChangePassword(ChangePasswordRequest) returns (ChangePasswordResponse) {}
+  // Starts the forgot-password flow. Always reports success, to avoid
+  // disclosing whether an address is registered.
+  rpc RequestPasswordReset(RequestPasswordResetRequest) returns (RequestPasswordResetResponse) {}
+  // Completes the forgot-password flow with the emailed token.
+  rpc ResetPassword(ResetPasswordRequest) returns (ResetPasswordResponse) {}
+  // Confirms an email address with the emailed token.
+  rpc VerifyEmail(VerifyEmailRequest) returns (VerifyEmailResponse) {}
+  // Re-sends the verification email to the caller.
+  rpc ResendVerificationEmail(ResendVerificationEmailRequest) returns (ResendVerificationEmailResponse) {}
+  // Lists the caller's active sessions.
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse) {}
+  // Revokes one of the caller's sessions by id.
+  rpc RevokeSession(RevokeSessionRequest) returns (RevokeSessionResponse) {}
+}
+
+message Credentials {
+  string email = 1;
+  string password = 2;
+}
+
+message RegisterRequest {
+  Credentials credentials = 1;
+  string display_name = 2;
+  Locale locale = 3;
+  string time_zone = 4;
+  SessionClient client = 5;
+}
+
+message RegisterResponse {
+  User user = 1;
+  Session session = 2;
+  // Bearer token. Returned exactly once.
+  string token = 3;
+}
+
+message LoginRequest {
+  Credentials credentials = 1;
+  SessionClient client = 2;
+}
+
+message LoginResponse {
+  User user = 1;
+  Session session = 2;
+  string token = 3;
+}
+
+message LogoutRequest {}
+
+message LogoutResponse {}
+
+message RefreshSessionRequest {}
+
+message RefreshSessionResponse {
+  Session session = 1;
+  string token = 2;
+}
+
+message ChangePasswordRequest {
+  string current_password = 1;
+  string new_password = 2;
+}
+
+message ChangePasswordResponse {
+  // A fresh session, since the old ones are gone.
+  Session session = 1;
+  string token = 2;
+}
+
+message RequestPasswordResetRequest {
+  string email = 1;
+  // Language for the outgoing email.
+  Locale locale = 2;
+}
+
+message RequestPasswordResetResponse {}
+
+message ResetPasswordRequest {
+  string token = 1;
+  string new_password = 2;
+}
+
+message ResetPasswordResponse {}
+
+message VerifyEmailRequest {
+  string token = 1;
+}
+
+message VerifyEmailResponse {
+  User user = 1;
+}
+
+message ResendVerificationEmailRequest {}
+
+message ResendVerificationEmailResponse {}
+
+message ListSessionsRequest {}
+
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+}
+
+message RevokeSessionRequest {
+  string id = 1;
+}
+
+message RevokeSessionResponse {}

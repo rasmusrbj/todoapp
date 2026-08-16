@@ -1,0 +1,147 @@
+syntax = "proto3";
+
+package todo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "todo/v1/common.proto";
+import "todo/v1/enums.proto";
+
+// A full user account. Only ever returned to the user themselves or to an admin.
+message User {
+  string id = 1;
+  string email = 2;
+  string display_name = 3;
+  // Optional free-text, shown on the profile.
+  string bio = 4;
+  string avatar_url = 5;
+  // IANA zone, e.g. "Europe/Copenhagen". Used to resolve "today" for due dates.
+  string time_zone = 6;
+
+  UserRole role = 10;
+  UserStatus status = 11;
+  Locale locale = 12;
+  ThemePreference theme = 13;
+
+  bool email_verified = 20;
+  // Aggregates, computed by the server — handy for profile and admin screens.
+  UserStats stats = 21;
+
+  google.protobuf.Timestamp created_at = 30;
+  google.protobuf.Timestamp updated_at = 31;
+  optional google.protobuf.Timestamp last_seen_at = 32;
+}
+
+// Server-computed counters about a user.
+message UserStats {
+  int32 owned_list_count = 1;
+  int32 shared_list_count = 2;
+  int32 open_task_count = 3;
+  int32 completed_task_count = 4;
+  int32 overdue_task_count = 5;
+}
+
+service UserService {
+  // Reads the caller's own account.
+  rpc GetCurrentUser(GetCurrentUserRequest) returns (GetCurrentUserResponse) {}
+  // Reads any user. Self always allowed; other users require admin.
+  rpc GetUser(GetUserRequest) returns (GetUserResponse) {}
+  // Admin-only listing with filters and sorting.
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {}
+  // Admin-only creation, bypassing self-signup.
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse) {}
+  // Partial update of a profile. Self or admin.
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse) {}
+  // Admin-only status transition (suspend, reactivate, …).
+  rpc UpdateUserStatus(UpdateUserStatusRequest) returns (UpdateUserStatusResponse) {}
+  // Hard-deletes the account and everything it owns. Self or admin.
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse) {}
+  // Type-ahead over users the caller may share a list with.
+  rpc SearchUsers(SearchUsersRequest) returns (SearchUsersResponse) {}
+}
+
+message GetCurrentUserRequest {}
+
+message GetCurrentUserResponse {
+  User user = 1;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message ListUsersRequest {
+  PageRequest page = 1;
+  // Free-text over display name and email.
+  string query = 2;
+  // Empty means every role.
+  repeated UserRole roles = 3;
+  // Empty means every status.
+  repeated UserStatus statuses = 4;
+  UserSortField sort_field = 5;
+  SortDirection sort_direction = 6;
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+  PageResponse page = 2;
+}
+
+message CreateUserRequest {
+  string email = 1;
+  string password = 2;
+  string display_name = 3;
+  UserRole role = 4;
+  Locale locale = 5;
+  string time_zone = 6;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+
+message UpdateUserRequest {
+  string id = 1;
+  // Only the fields that are present are written.
+  optional string display_name = 2;
+  optional string bio = 3;
+  optional string avatar_url = 4;
+  optional string time_zone = 5;
+  optional Locale locale = 6;
+  optional ThemePreference theme = 7;
+  // Admin-only field.
+  optional UserRole role = 8;
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}
+
+message UpdateUserStatusRequest {
+  string id = 1;
+  UserStatus status = 2;
+  // Shown to the user and recorded in the audit trail.
+  string reason = 3;
+}
+
+message UpdateUserStatusResponse {
+  User user = 1;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message DeleteUserResponse {}
+
+message SearchUsersRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message SearchUsersResponse {
+  repeated UserRef users = 1;
+}

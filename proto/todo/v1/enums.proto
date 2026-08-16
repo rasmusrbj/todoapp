@@ -1,0 +1,170 @@
+syntax = "proto3";
+
+package todo.v1;
+
+// Every closed set of values in the product is modelled as an enum here, mirrored
+// by a real PostgreSQL enum type and by a localized display-name lookup in each
+// client. Never render these raw — resolve them through the client i18n layer.
+
+// Lifecycle of a single task.
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_TODO = 1;
+  TASK_STATUS_IN_PROGRESS = 2;
+  TASK_STATUS_BLOCKED = 3;
+  TASK_STATUS_DONE = 4;
+  TASK_STATUS_CANCELLED = 5;
+}
+
+// How urgent a task is. Ordered from least to most urgent so it sorts naturally.
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_NONE = 1;
+  TASK_PRIORITY_LOW = 2;
+  TASK_PRIORITY_MEDIUM = 3;
+  TASK_PRIORITY_HIGH = 4;
+  TASK_PRIORITY_URGENT = 5;
+}
+
+// Who can reach a list.
+enum ListVisibility {
+  LIST_VISIBILITY_UNSPECIFIED = 0;
+  // Only the owner.
+  LIST_VISIBILITY_PRIVATE = 1;
+  // Owner plus explicitly invited members.
+  LIST_VISIBILITY_SHARED = 2;
+  // Anyone with the link may read.
+  LIST_VISIBILITY_PUBLIC = 3;
+}
+
+// Fixed accent palette for lists, resolved to design tokens by the client.
+enum ListColor {
+  LIST_COLOR_UNSPECIFIED = 0;
+  LIST_COLOR_ZINC = 1;
+  LIST_COLOR_RED = 2;
+  LIST_COLOR_AMBER = 3;
+  LIST_COLOR_GREEN = 4;
+  LIST_COLOR_BLUE = 5;
+  LIST_COLOR_VIOLET = 6;
+  LIST_COLOR_PINK = 7;
+}
+
+// A member's permission level on a list. Ordered most to least privileged.
+enum MemberRole {
+  MEMBER_ROLE_UNSPECIFIED = 0;
+  MEMBER_ROLE_OWNER = 1;
+  MEMBER_ROLE_EDITOR = 2;
+  MEMBER_ROLE_COMMENTER = 3;
+  MEMBER_ROLE_VIEWER = 4;
+}
+
+// Platform-wide role.
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_MEMBER = 1;
+  USER_ROLE_ADMIN = 2;
+}
+
+// Account lifecycle.
+enum UserStatus {
+  USER_STATUS_UNSPECIFIED = 0;
+  USER_STATUS_PENDING_VERIFICATION = 1;
+  USER_STATUS_ACTIVE = 2;
+  USER_STATUS_SUSPENDED = 3;
+  USER_STATUS_DEACTIVATED = 4;
+}
+
+// Supported interface languages.
+enum Locale {
+  LOCALE_UNSPECIFIED = 0;
+  LOCALE_DA = 1;
+  LOCALE_EN = 2;
+}
+
+// Appearance preference.
+enum ThemePreference {
+  THEME_PREFERENCE_UNSPECIFIED = 0;
+  THEME_PREFERENCE_SYSTEM = 1;
+  THEME_PREFERENCE_LIGHT = 2;
+  THEME_PREFERENCE_DARK = 3;
+}
+
+// How often a task repeats.
+enum RecurrenceFrequency {
+  RECURRENCE_FREQUENCY_UNSPECIFIED = 0;
+  RECURRENCE_FREQUENCY_NONE = 1;
+  RECURRENCE_FREQUENCY_DAILY = 2;
+  RECURRENCE_FREQUENCY_WEEKLY = 3;
+  RECURRENCE_FREQUENCY_MONTHLY = 4;
+  RECURRENCE_FREQUENCY_YEARLY = 5;
+}
+
+// What happened, for the activity feed.
+enum ActivityAction {
+  ACTIVITY_ACTION_UNSPECIFIED = 0;
+  ACTIVITY_ACTION_CREATED = 1;
+  ACTIVITY_ACTION_UPDATED = 2;
+  ACTIVITY_ACTION_STATUS_CHANGED = 3;
+  ACTIVITY_ACTION_ASSIGNED = 4;
+  ACTIVITY_ACTION_UNASSIGNED = 5;
+  ACTIVITY_ACTION_COMMENTED = 6;
+  ACTIVITY_ACTION_ARCHIVED = 7;
+  ACTIVITY_ACTION_RESTORED = 8;
+  ACTIVITY_ACTION_DELETED = 9;
+  ACTIVITY_ACTION_MEMBER_ADDED = 10;
+  ACTIVITY_ACTION_MEMBER_REMOVED = 11;
+  ACTIVITY_ACTION_MEMBER_ROLE_CHANGED = 12;
+}
+
+// What the activity entry points at.
+enum ActivityTargetType {
+  ACTIVITY_TARGET_TYPE_UNSPECIFIED = 0;
+  ACTIVITY_TARGET_TYPE_LIST = 1;
+  ACTIVITY_TARGET_TYPE_TASK = 2;
+  ACTIVITY_TARGET_TYPE_COMMENT = 3;
+  ACTIVITY_TARGET_TYPE_MEMBERSHIP = 4;
+}
+
+// Sort direction for any listing RPC.
+enum SortDirection {
+  SORT_DIRECTION_UNSPECIFIED = 0;
+  SORT_DIRECTION_ASC = 1;
+  SORT_DIRECTION_DESC = 2;
+}
+
+// Sortable columns on tasks.
+enum TaskSortField {
+  TASK_SORT_FIELD_UNSPECIFIED = 0;
+  TASK_SORT_FIELD_POSITION = 1;
+  TASK_SORT_FIELD_CREATED_AT = 2;
+  TASK_SORT_FIELD_UPDATED_AT = 3;
+  TASK_SORT_FIELD_DUE_AT = 4;
+  TASK_SORT_FIELD_PRIORITY = 5;
+  TASK_SORT_FIELD_TITLE = 6;
+}
+
+// Sortable columns on lists.
+enum ListSortField {
+  LIST_SORT_FIELD_UNSPECIFIED = 0;
+  LIST_SORT_FIELD_POSITION = 1;
+  LIST_SORT_FIELD_CREATED_AT = 2;
+  LIST_SORT_FIELD_UPDATED_AT = 3;
+  LIST_SORT_FIELD_NAME = 4;
+}
+
+// Sortable columns on users (admin listing).
+enum UserSortField {
+  USER_SORT_FIELD_UNSPECIFIED = 0;
+  USER_SORT_FIELD_CREATED_AT = 1;
+  USER_SORT_FIELD_DISPLAY_NAME = 2;
+  USER_SORT_FIELD_EMAIL = 3;
+  USER_SORT_FIELD_LAST_SEEN_AT = 4;
+}
+
+// Kind of device a session was opened from.
+enum SessionClient {
+  SESSION_CLIENT_UNSPECIFIED = 0;
+  SESSION_CLIENT_WEB = 1;
+  SESSION_CLIENT_MOBILE = 2;
+  SESSION_CLIENT_CLI = 3;
+}

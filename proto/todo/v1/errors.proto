@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package todo.v1;
+
+// Machine-readable failure reason, attached to every ConnectError raised by this
+// API as a Protobuf error detail. Clients localize the reason; the ConnectError
+// `message` field is English developer text and must never be shown to a user.
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0;
+
+  // Authentication and accounts.
+  ERROR_REASON_INVALID_CREDENTIALS = 1;
+  ERROR_REASON_EMAIL_ALREADY_REGISTERED = 2;
+  ERROR_REASON_PASSWORD_TOO_WEAK = 3;
+  ERROR_REASON_SESSION_EXPIRED = 4;
+  ERROR_REASON_NOT_AUTHENTICATED = 5;
+  ERROR_REASON_ACCOUNT_SUSPENDED = 6;
+  ERROR_REASON_ACCOUNT_DEACTIVATED = 7;
+  ERROR_REASON_EMAIL_NOT_VERIFIED = 8;
+  ERROR_REASON_TOKEN_INVALID = 9;
+  ERROR_REASON_TOKEN_EXPIRED = 10;
+  ERROR_REASON_TOKEN_ALREADY_USED = 11;
+  ERROR_REASON_CURRENT_PASSWORD_INCORRECT = 12;
+
+  // Authorization.
+  ERROR_REASON_PERMISSION_DENIED = 20;
+  ERROR_REASON_ADMIN_REQUIRED = 21;
+  ERROR_REASON_OWNER_REQUIRED = 22;
+  ERROR_REASON_CANNOT_REMOVE_OWNER = 23;
+  ERROR_REASON_CANNOT_DEMOTE_SELF = 24;
+
+  // Existence.
+  ERROR_REASON_USER_NOT_FOUND = 40;
+  ERROR_REASON_LIST_NOT_FOUND = 41;
+  ERROR_REASON_TASK_NOT_FOUND = 42;
+  ERROR_REASON_LABEL_NOT_FOUND = 43;
+  ERROR_REASON_COMMENT_NOT_FOUND = 44;
+  ERROR_REASON_SUBTASK_NOT_FOUND = 45;
+  ERROR_REASON_MEMBER_NOT_FOUND = 46;
+  ERROR_REASON_SESSION_NOT_FOUND = 47;
+
+  // Validation.
+  ERROR_REASON_VALIDATION_FAILED = 60;
+  ERROR_REASON_FIELD_REQUIRED = 61;
+  ERROR_REASON_FIELD_TOO_LONG = 62;
+  ERROR_REASON_INVALID_EMAIL = 63;
+  ERROR_REASON_INVALID_ENUM_VALUE = 64;
+  ERROR_REASON_INVALID_TIME_ZONE = 65;
+  ERROR_REASON_LABEL_NAME_TAKEN = 66;
+  ERROR_REASON_MEMBER_ALREADY_ADDED = 67;
+  ERROR_REASON_LABEL_NOT_ON_LIST = 68;
+  ERROR_REASON_ASSIGNEE_NOT_A_MEMBER = 69;
+  ERROR_REASON_INVALID_DATE_RANGE = 70;
+  ERROR_REASON_NO_CHANGE_REQUESTED = 71;
+
+  // Rate limiting and conflicts.
+  ERROR_REASON_RATE_LIMITED = 80;
+  ERROR_REASON_CONFLICT = 81;
+
+  ERROR_REASON_INTERNAL = 99;
+}
+
+// The error detail carried on every failed RPC.
+message ErrorDetail {
+  ErrorReason reason = 1;
+  // Request field the failure is attributed to, when it is one field's fault.
+  // Lets a form highlight the offending input.
+  string field = 2;
+  // Substitution values for the localized message, e.g. {"max": "200"}.
+  map<string, string> metadata = 3;
+}

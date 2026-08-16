@@ -1,0 +1,20 @@
+// Code-signing identity for device builds.
+//
+// Committed, and deliberately empty: a team ID ties a public repository to one Apple
+// Developer account, and a contributor building this needs *their* team, not ours.
+//
+// Simulator builds need nothing here — they are not signed. For a device, create
+// `apple/Signing.local.xcconfig` (gitignored) with your own team:
+//
+//     DEVELOPMENT_TEAM = ABCDE12345
+//     PRODUCT_BUNDLE_IDENTIFIER = com.example.todoapp
+//
+// or run `make ios-signing TEAM=ABCDE12345`. Find the ID under Membership at
+// https://developer.apple.com/account.
+
+DEVELOPMENT_TEAM =
+PRODUCT_BUNDLE_IDENTIFIER = com.example.todoapp
+
+// `#include?` is the optional form — no error when the file is absent, which is the
+// normal state for a fresh clone and for CI.
+#include? "Signing.local.xcconfig"

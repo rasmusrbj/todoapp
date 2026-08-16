@@ -1,0 +1,45 @@
+name: Bug report
+description: Something behaves differently from how it reads
+labels: [bug]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Which part
+      options: [backend, web, iOS, CLI, proto / codegen, build or tooling, not sure]
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. make setup
+        2. …
+        3. …
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Actual output
+      description: >
+        The error, the failing assertion, the log line. Paste it rather than describing it —
+        the exact wording usually points straight at the cause.
+      render: text
+
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: macOS 26.6, Python 3.13, Node 22, PostgreSQL 16, Xcode 26.6

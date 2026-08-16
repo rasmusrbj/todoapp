@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to a PR makes the previous run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Raises the Buf Schema Registry's anonymous rate limit for the remote Python
+  # plugins. Optional — without it codegen still works, but a busy day can return
+  # `resource_exhausted`. Add it under Settings → Secrets if that starts happening.
+  BUF_TOKEN: ${{ secrets.BUF_TOKEN }}
+
+jobs:
+  proto:
+    name: Proto
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `buf breaking` needs history to compare against.
+          fetch-depth: 0
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+      - run: buf lint
+      - name: Check for breaking changes against main
+        # Informational on main itself, where there is nothing to compare to.
+        if: github.event_name == 'pull_request'
+        run: buf breaking --against '.git#branch=origin/main'
+
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: todoapp
+          # C collation, matching docker-compose: label uniqueness is a functional
+          # index on lower(name), and collation changes index behaviour.
+          POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TODOAPP_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/todoapp
+      TODOAPP_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/todoapp_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+
+      - name: Create the test database
+        run: psql "$TODOAPP_DATABASE_URL" -f scripts/init-test-db.sql
+        env:
+          PGPASSWORD: postgres
+
+      - run: make install-backend
+      - run: make generate-backend
+      - run: make lint-backend
+      - run: make migrate
+      - name: Tests
+        # The suite creates its own fixtures; it does not depend on the seed.
+        run: make test
+
+      - name: Seed refuses to invent a credential
+        # The seed asks for an account interactively. There is no terminal here, so it
+        # must fail loudly rather than fall back to a default password — that fallback
+        # is exactly how a known admin credential reaches a deployment.
+        run: |
+          if make seed < /dev/null 2>&1 | tee /tmp/seed.log; then
+            echo "::error::the seed should have refused without credentials"; exit 1
+          fi
+          grep -q "no terminal" /tmp/seed.log
+
+      - name: Seed works when told what to create
+        run: |
+          make seed TODOAPP_DEMO_EMAIL=ci@example.com \
+                    TODOAPP_DEMO_PASSWORD=ci-password-for-tests
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    # `web/.npmrc` pulls @fortawesome from a licensed private registry, and secrets are
+    # not exposed to pull requests from forks. So this job cannot run for an outside
+    # contributor — it is skipped rather than failed, and the backend, CLI and iOS jobs
+    # still cover their PR. See CONTRIBUTING.md.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+
+      - name: Fail clearly when the icon token is missing
+        env:
+          FONTAWESOME_NPM_TOKEN: ${{ secrets.FONTAWESOME_NPM_TOKEN }}
+        run: |
+          test -n "$FONTAWESOME_NPM_TOKEN" || {
+            echo "::error::FONTAWESOME_NPM_TOKEN is not set. Add it under Settings → Secrets."
+            exit 1
+          }
+
+      - run: make install-web
+        env:
+          FONTAWESOME_NPM_TOKEN: ${{ secrets.FONTAWESOME_NPM_TOKEN }}
+      - run: make generate-web
+      - run: make lint-web
+      - run: make build
+
+  ios:
+    name: iOS
+    runs-on: macos-15
+    # Informational for now: this needs Xcode 26 with the iOS 26 SDK, and whether a
+    # GitHub-hosted image has it varies. It is marked non-blocking rather than pinned to
+    # a self-hosted runner, because a public repository should not hand fork PRs access
+    # to private hardware. Flip this off once a run has passed.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bufbuild/buf-action@v1
+        with:
+          setup_only: true
+      - name: Select Xcode 26
+        run: |
+          ls /Applications | grep -i '^Xcode' || true
+          sudo xcode-select -s /Applications/Xcode_26.app || {
+            echo "::warning::Xcode 26 not present on this runner"; exit 1; }
+          xcodebuild -version
+      - run: brew install xcodegen
+      # Swift codegen uses local plugins, so this needs no network and cannot be
+      # rate-limited by the registry.
+      - run: brew install swift-protobuf protoc-gen-connect-swift
+      - run: make generate-ios
+      - run: make ios-project
+      - name: Build and run the hermetic tests
+        run: make ios-test IOS_SIM='iPhone 16 Pro Max'

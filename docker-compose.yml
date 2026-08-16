@@ -1,0 +1,34 @@
+# PostgreSQL for anyone who would rather not install it locally.
+#
+# Deliberately on 5433, so it cannot collide with a local server already holding
+# 5432. Point the backend at it with:
+#
+#   TODOAPP_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/todoapp
+
+services:
+  postgres:
+    # Pinned to the same major version the migrations are tested against.
+    image: postgres:16-alpine
+    container_name: todoapp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: todoapp
+      # C collation keeps index behaviour identical across machines, which matters
+      # because label uniqueness is a functional index on lower(name).
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    ports:
+      - '5433:5432'
+    volumes:
+      - todoapp-postgres:/var/lib/postgresql/data
+      # Creates the test database alongside the development one on first boot.
+      - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/10-test-db.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d todoapp']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  todoapp-postgres:

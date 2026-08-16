@@ -1,0 +1,235 @@
+syntax = "proto3";
+
+package todo.v1;
+
+import "google/protobuf/timestamp.proto";
+import "todo/v1/common.proto";
+import "todo/v1/enums.proto";
+
+// A todo list. Rich enough to render a card without a second round-trip.
+message TodoList {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  ListColor color = 10;
+  ListVisibility visibility = 11;
+  // Manual ordering within the owner's board.
+  int32 position = 12;
+  bool archived = 13;
+
+  UserRef owner = 20;
+  // The caller's own role on this list.
+  MemberRole viewer_role = 21;
+  // Everyone with access, owner included.
+  repeated ListMember members = 22;
+  // Labels defined on this list.
+  repeated LabelRef labels = 23;
+  ListStats stats = 24;
+
+  google.protobuf.Timestamp created_at = 30;
+  google.protobuf.Timestamp updated_at = 31;
+  optional google.protobuf.Timestamp archived_at = 32;
+}
+
+// Server-computed counters about a list.
+message ListStats {
+  int32 total_task_count = 1;
+  int32 open_task_count = 2;
+  int32 completed_task_count = 3;
+  int32 overdue_task_count = 4;
+  int32 member_count = 5;
+  // 0–100, rounded. 100 for an empty list.
+  int32 completion_percent = 6;
+  optional google.protobuf.Timestamp next_due_at = 7;
+}
+
+// One person's access to one list.
+message ListMember {
+  string id = 1;
+  string list_id = 2;
+  UserRef user = 3;
+  MemberRole role = 4;
+  UserRef invited_by = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// A label, scoped to a single list.
+message Label {
+  string id = 1;
+  string list_id = 2;
+  string name = 3;
+  ListColor color = 4;
+  // How many tasks currently carry it.
+  int32 task_count = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+service ListService {
+  rpc GetList(GetListRequest) returns (GetListResponse) {}
+  rpc ListLists(ListListsRequest) returns (ListListsResponse) {}
+  rpc CreateList(CreateListRequest) returns (CreateListResponse) {}
+  rpc UpdateList(UpdateListRequest) returns (UpdateListResponse) {}
+  // Archives or restores a list without destroying it.
+  rpc SetListArchived(SetListArchivedRequest) returns (SetListArchivedResponse) {}
+  rpc DeleteList(DeleteListRequest) returns (DeleteListResponse) {}
+  // Persists a manual drag-and-drop ordering.
+  rpc ReorderLists(ReorderListsRequest) returns (ReorderListsResponse) {}
+
+  rpc ListMembers(ListMembersRequest) returns (ListMembersResponse) {}
+  rpc AddMember(AddMemberRequest) returns (AddMemberResponse) {}
+  rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse) {}
+  rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse) {}
+
+  rpc ListLabels(ListLabelsRequest) returns (ListLabelsResponse) {}
+  rpc CreateLabel(CreateLabelRequest) returns (CreateLabelResponse) {}
+  rpc UpdateLabel(UpdateLabelRequest) returns (UpdateLabelResponse) {}
+  rpc DeleteLabel(DeleteLabelRequest) returns (DeleteLabelResponse) {}
+}
+
+message GetListRequest {
+  string id = 1;
+}
+
+message GetListResponse {
+  TodoList list = 1;
+}
+
+message ListListsRequest {
+  PageRequest page = 1;
+  string query = 2;
+  // Empty means every visibility.
+  repeated ListVisibility visibilities = 3;
+  // Defaults to false: archived lists are hidden unless asked for.
+  bool include_archived = 4;
+  // Restricts to lists where the caller holds one of these roles.
+  repeated MemberRole roles = 5;
+  ListSortField sort_field = 6;
+  SortDirection sort_direction = 7;
+}
+
+message ListListsResponse {
+  repeated TodoList lists = 1;
+  PageResponse page = 2;
+}
+
+message CreateListRequest {
+  string name = 1;
+  string description = 2;
+  ListColor color = 3;
+  ListVisibility visibility = 4;
+}
+
+message CreateListResponse {
+  TodoList list = 1;
+}
+
+message UpdateListRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional ListColor color = 4;
+  optional ListVisibility visibility = 5;
+}
+
+message UpdateListResponse {
+  TodoList list = 1;
+}
+
+message SetListArchivedRequest {
+  string id = 1;
+  bool archived = 2;
+}
+
+message SetListArchivedResponse {
+  TodoList list = 1;
+}
+
+message DeleteListRequest {
+  string id = 1;
+}
+
+message DeleteListResponse {}
+
+message ReorderListsRequest {
+  // List ids in their new order, top to bottom.
+  repeated string list_ids = 1;
+}
+
+message ReorderListsResponse {
+  repeated TodoList lists = 1;
+}
+
+message ListMembersRequest {
+  string list_id = 1;
+}
+
+message ListMembersResponse {
+  repeated ListMember members = 1;
+}
+
+message AddMemberRequest {
+  string list_id = 1;
+  // Either an existing user id or an email address to invite.
+  oneof invitee {
+    string user_id = 2;
+    string email = 3;
+  }
+  MemberRole role = 4;
+}
+
+message AddMemberResponse {
+  ListMember member = 1;
+}
+
+message UpdateMemberRoleRequest {
+  string list_id = 1;
+  string user_id = 2;
+  MemberRole role = 3;
+}
+
+message UpdateMemberRoleResponse {
+  ListMember member = 1;
+}
+
+message RemoveMemberRequest {
+  string list_id = 1;
+  string user_id = 2;
+}
+
+message RemoveMemberResponse {}
+
+message ListLabelsRequest {
+  string list_id = 1;
+}
+
+message ListLabelsResponse {
+  repeated Label labels = 1;
+}
+
+message CreateLabelRequest {
+  string list_id = 1;
+  string name = 2;
+  ListColor color = 3;
+}
+
+message CreateLabelResponse {
+  Label label = 1;
+}
+
+message UpdateLabelRequest {
+  string id = 1;
+  optional string name = 2;
+  optional ListColor color = 3;
+}
+
+message UpdateLabelResponse {
+  Label label = 1;
+}
+
+message DeleteLabelRequest {
+  string id = 1;
+}
+
+message DeleteLabelResponse {}

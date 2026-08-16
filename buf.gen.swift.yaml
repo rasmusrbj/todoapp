@@ -1,0 +1,25 @@
+version: v2
+clean: true
+
+inputs:
+  - directory: proto
+
+plugins:
+  # Both local (Homebrew), so iOS codegen works offline. Keep `protoc-gen-swift` in step
+  # with the SwiftProtobuf version resolved in apple/project.yml — 1.38.x here.
+  #
+  # Xcode flattens basenames within a target, so two protos sharing a file name in
+  # different packages would collide; PathToUnderscores makes each output name
+  # path-unique (todo_v1_task.pb.swift).
+  - local: protoc-gen-swift
+    out: apple/gen
+    opt:
+      - Visibility=Public
+      - FileNaming=PathToUnderscores
+  - local: protoc-gen-connect-swift
+    out: apple/gen
+    opt:
+      - GenerateAsyncMethods=true
+      - GenerateCallbackMethods=false
+      - Visibility=Public
+      - FileNaming=PathToUnderscores

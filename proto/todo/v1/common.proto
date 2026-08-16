@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package todo.v1;
+
+import "todo/v1/enums.proto";
+
+// Cursor pagination request, shared by every listing RPC.
+message PageRequest {
+  // Page size. Clamped server-side to [1, 100]; 0 means the server default (25).
+  int32 limit = 1;
+  // Opaque cursor returned as PageResponse.next_cursor. Empty means "from the start".
+  string cursor = 2;
+}
+
+// Cursor pagination response.
+message PageResponse {
+  // Empty when there is no further page.
+  string next_cursor = 1;
+  // Total number of rows matching the filter, ignoring pagination.
+  int32 total_count = 2;
+  bool has_more = 3;
+}
+
+// A short, denormalised reference to a user, safe to embed anywhere.
+message UserRef {
+  string id = 1;
+  string display_name = 2;
+  string email = 3;
+  string avatar_url = 4;
+}
+
+// A short, denormalised reference to a list.
+message ListRef {
+  string id = 1;
+  string name = 2;
+  ListColor color = 3;
+  ListVisibility visibility = 4;
+}
+
+// A short, denormalised reference to a label.
+message LabelRef {
+  string id = 1;
+  string name = 2;
+  ListColor color = 3;
+}
